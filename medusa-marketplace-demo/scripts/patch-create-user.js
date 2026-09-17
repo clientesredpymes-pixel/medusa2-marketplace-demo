@@ -41,23 +41,21 @@ function findCreateUserFile(root) {
         "node_modules/@techlabi/medusa-marketplace-plugin/.medusa/server",
     ];
     const createUserPaths = [
-        path_1.default.join(root, ...names, "src", "workflows", "create-store", "steps", "create-user.js"),
-        path_1.default.join(root, ...names, "src", "workflows", "create-store", "steps", "create-user.js.map"),
+        path_1.join(root, ...names, "src", "workflows", "create-store", "steps", "create-user.js"),
+        path_1.join(root, ...names, "src", "workflows", "create-store", "steps", "create-user.js.map"),
     ];
     for (const p of createUserPaths) {
-        if (fs_1.default.existsSync(p)) {
+        if (fs_1.existsSync(p)) {
             return p;
         }
     }
-    // Fallback: también puede vivir bajo el build local `.medusa` del starter en el
-    // deploy de Medusa 0.35.0 (por si Render reubica el output de `medusa build`).
     const fallbacks = [
         ".medusa",
         "node_modules",
     ];
     for (const fb of fallbacks) {
-        const base = path_1.default.join(root, fb);
-        if (!fs_1.default.existsSync(base)) {
+        const base = path_1.join(root, fb);
+        if (!fs_1.existsSync(base)) {
             continue;
         }
         const found = walkSync(base, "create-user.js");
@@ -72,17 +70,14 @@ function walkSync(dir, filename) {
     const walk = (current) => {
         let entries;
         try {
-            entries = fs_1.default.readdirSync(current, { withFileTypes: true });
+            entries = fs_1.readdirSync(current, { withFileTypes: true });
         }
         catch {
             return;
         }
         for (const entry of entries) {
-            const full = path_1.default.join(current, entry.name);
+            const full = path_1.join(current, entry.name);
             if (entry.isDirectory()) {
-                if (entry.name === "node_modules" && current.endsWith("node_modules")) {
-                    // nodo interno de un paquete; seguimos
-                }
                 walk(full);
             }
             else if (entry.isFile() && entry.name === filename) {
@@ -91,34 +86,21 @@ function walkSync(dir, filename) {
         }
     };
     walk(dir);
-    // devolver el que tenga el needle (el workflow real, no un .map)
     return matches.find((m) => {
         try {
-            return fs_1.default.readFileSync(m, "utf8").includes(REGISTER_NEEDLE);
+            return fs_1.readFileSync(m, "utf8").includes(REGISTER_NEEDLE);
         }
         catch {
             return false;
         }
     }) || matches[0] || null;
 }
-/**
- * Reemplaza, en el JS compilado, la parte vulnerable:
- *
- *   await authService.updateAuthIdentities({
- *       id: registerResponse.authIdentity.id,
- *       app_metadata: { user_id: user.id },
- *   });
- *
- * por un bloque con guard + fallback a identity existente.
- */
 function buildReplacement() {
     const originalIdExpr = `id: registerResponse.authIdentity.id,`;
     const guardBackfill = [
         `/******** BEGIN [${PATCHED_MARKER}] ********/`,
         `    let authIdentityId = registerResponse?.authIdentity?.id;`,
         `    if (registerResponse?.success === false || !authIdentityId) {`,
-        `        // Reutilizar la auth identity ya existente (email ya registrado en un`,
-        `        // intento previo fallido, o merchant ya aprovisionado).`,
         `        let existing = [];`,
         `        try {`,
         `            existing = await authService.retrieveAuthIdentities({`,
@@ -151,7 +133,7 @@ if (!target) {
     console.log("[patch-create-user] create-user.js no encontrado en node_modules del plugin; se omite (prob. no instalado aun en este paso).");
     process.exit(0);
 }
-let source = fs_1.default.readFileSync(target, "utf8");
+let source = fs_1.readFileSync(target, "utf8");
 if (source.includes(PATCHED_MARKER)) {
     console.log("[patch-create-user] create-user.js ya parcheado, se omite.");
     process.exit(0);
@@ -164,5 +146,5 @@ if (!source.includes(originalIdExpr)) {
     process.exit(1);
 }
 source = source.split(originalIdExpr).join(guardBackfill);
-fs_1.default.writeFileSync(target, source, "utf8");
+fs_1.writeFileSync(target, source, "utf8");
 console.log("[patch-create-user] create-user.js parcheado OK con guard registerResponse.success (fallback a identity existente).");
