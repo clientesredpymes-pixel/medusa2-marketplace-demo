@@ -27,6 +27,12 @@ const modules = [
       ],
     },
   },
+  {
+    resolve: "@medusajs/medusa/inventory",
+  },
+  {
+    resolve: "@medusajs/medusa/stock-location",
+  },
   ...(s3Configured
     ? [
         {
