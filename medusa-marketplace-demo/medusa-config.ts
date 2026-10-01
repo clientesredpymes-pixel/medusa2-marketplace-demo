@@ -64,6 +64,12 @@ const modules = [
 
 module.exports = defineConfig({
   admin: {
+    // URL publica del backend. Sin esto, config.admin.backendUrl queda en "/"
+    // y el subscriber src/subscribers/password-reset.ts cae a su fallback
+    // hardcodeado "http://localhost:9000", con lo que los links de reset de
+    // contrasena apuntan a localhost y el token se percibe como invalido.
+    backendUrl: process.env.MEDUSA_BACKEND_URL,
+    path: "/app",
     vite: () => {
       return {
         optimizeDeps: {
