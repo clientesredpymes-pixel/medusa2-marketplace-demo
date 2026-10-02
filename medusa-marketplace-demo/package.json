@@ -13,7 +13,7 @@
     "medusa"
   ],
   "scripts": {
-    "postinstall": "node node_modules/@techlabi/medusa-marketplace-plugin/.medusa/server/src/patch-admin.js && (node scripts/patch-create-user.js || true)",
+    "postinstall": "node node_modules/@techlabi/medusa-marketplace-plugin/.medusa/server/src/patch-admin.js && (node scripts/patch-create-user.js || true) && (node scripts/patch-add-store-scope.js || true)",
     "build": "medusa build",
     "seed": "medusa exec ./src/scripts/seed.ts",
     "start": "medusa start",
