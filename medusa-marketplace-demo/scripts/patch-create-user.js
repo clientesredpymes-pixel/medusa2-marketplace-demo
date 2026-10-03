@@ -96,7 +96,14 @@ function walkSync(dir, filename) {
     }) || matches[0] || null;
 }
 function buildReplacement() {
-    const originalIdExpr = `id: registerResponse.authIdentity.id,`;
+    // Ancla: la llamada completa a updateAuthIdentities, NO solo la propiedad
+    // `id:`. Inyectar el guard antes de la llamada (y no dentro del literal de
+    // objeto) es lo unico que produce JS valido: dentro de `({ ... })` solo
+    // pueden aparecer propiedades, y una sentencia `let` ahi es SyntaxError.
+    const originalExpr = [
+        `await authService.updateAuthIdentities({`,
+        `        id: registerResponse.authIdentity.id,`,
+    ].join("\n");
     const guardBackfill = [
         `/******** BEGIN [${PATCHED_MARKER}] ********/`,
         `    let authIdentityId = registerResponse?.authIdentity?.id;`,
@@ -123,9 +130,10 @@ function buildReplacement() {
         `        }`,
         `    }`,
         `/******** END [${PATCHED_MARKER}] ********/`,
-        `id: authIdentityId,`,
+        `    await authService.updateAuthIdentities({`,
+        `        id: authIdentityId,`,
     ].join("\n");
-    return { originalIdExpr, guardBackfill };
+    return { originalExpr, guardBackfill };
 }
 const root = process.cwd();
 const target = findCreateUserFile(root);
@@ -134,17 +142,35 @@ if (!target) {
     process.exit(0);
 }
 let source = fs_1.readFileSync(target, "utf8");
+const originalSource = source;
 if (source.includes(PATCHED_MARKER)) {
     console.log("[patch-create-user] create-user.js ya parcheado, se omite.");
     process.exit(0);
 }
-const { originalIdExpr, guardBackfill } = buildReplacement();
-if (!source.includes(originalIdExpr)) {
+const { originalExpr, guardBackfill } = buildReplacement();
+if (!source.includes(originalExpr)) {
     console.error(
         "[patch-create-user] no se encontró el patrón vulnerable exacto en " + target + "; ¿versión de plugin distinta? Se aborta sin modificar."
     );
     process.exit(1);
 }
-source = source.split(originalIdExpr).join(guardBackfill);
+source = source.split(originalExpr).join(guardBackfill);
 fs_1.writeFileSync(target, source, "utf8");
+// Verificacion de sintaxis: este parche ya corrio contra la copia que carga el
+// servidor sin que nadie lo revisara, y generaba un SyntaxError (una sentencia
+// `let` inyectada dentro de un literal de objeto). Un archivo corrupto aqui
+// tumba el arranque completo del backend, asi que fallar ahora es lo correcto.
+const { execFileSync } = require("child_process");
+try {
+    execFileSync(process.execPath, ["--check", target], { stdio: "pipe" });
+}
+catch (err) {
+    console.error(
+        "[patch-create-user] el parche produjo JavaScript inválido en " + target +
+        "; se revierte el archivo para no dejar el backend sin arrancar.\n" +
+        (err.stderr ? err.stderr.toString() : String(err))
+    );
+    fs_1.writeFileSync(target, originalSource, "utf8");
+    process.exit(1);
+}
 console.log("[patch-create-user] create-user.js parcheado OK con guard registerResponse.success (fallback a identity existente).");

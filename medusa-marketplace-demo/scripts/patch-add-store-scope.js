@@ -159,6 +159,7 @@ if (!target) {
 }
 
 let source = fs_1.readFileSync(target, "utf8");
+const originalSource = source;
 if (source.includes(PATCHED_MARKER)) {
     console.log("[patch-add-store-scope] add-store-scope.js ya parcheado, se omite.");
     process.exit(0);
@@ -172,4 +173,21 @@ if (!source.includes(ANCHOR)) {
 
 source = source.split(ANCHOR).join(buildReplacement());
 fs_1.writeFileSync(target, source, "utf8");
+
+// Verificacion de sintaxis con revert. Este middleware se carga en cada request
+// de administracion: si el parche genera JS invalido, el backend no arranca.
+// Fallar acá es mucho mejor que deployar un archivo corrupto.
+const { execFileSync } = require("child_process");
+try {
+    execFileSync(process.execPath, ["--check", target], { stdio: "pipe" });
+}
+catch (err) {
+    console.error(
+        "[patch-add-store-scope] el parche produjo JavaScript inválido en " + target +
+        "; se revierte el archivo.\n" +
+        (err.stderr ? err.stderr.toString() : String(err))
+    );
+    fs_1.writeFileSync(target, originalSource, "utf8");
+    process.exit(1);
+}
 console.log("[patch-add-store-scope] add-store-scope.js parcheado OK con override de store por x-medusa-store-id para Secret API Keys en allowlist.");
